@@ -3,14 +3,23 @@
  *
  * OBS Browser Source: Hotkey forwarding with configurable modifier filtering.
  *
- * This module allows registering hotkeys for browser sources and forwarding those keystrokes to the embedded browser. Users can choose to:
+ * This module allows registering hotkeys for browser sources and forwarding those keystrokes
+ * to the embedded browser. Users can choose to:
  *   - Pass the hotkey exactly as pressed (including modifiers),
  *   - Strip only the first modifier,
  *   - Strip all modifiers (send only the base key).
  *
- * This enables workflows such as sending the same keystroke (e.g., 'A') to different browser sources by using different modifiers (e.g., CTRL+A for Browser Source 1, ALT+A for Browser Source 2), while the browser itself only receives the intended key event.
+ * This enables workflows such as sending the same keystroke (e.g., 'A') to different browser
+ * sources by using different modifiers (e.g., CTRL+A for Browser Source 1, ALT+A for Browser
+ * Source 2), while the browser itself only receives the intended key event.
  *
- * The code is modular, memory-safe, and follows OBS and obs-browser contribution guidelines. See comments for detailed usage and integration notes.
+ * Three hotkey options are automatically registered for each browser source:
+ *   - Send Key to Browser Source (Exact)
+ *   - Send Key to Browser Source (Strip First Modifier)
+ *   - Send Key to Browser Source (Strip All Modifiers)
+ *
+ * The user can assign any key or key+modifier combo to these actions. When triggered, the
+ * keystroke is forwarded based on the selected filtering mode.
  *
  * Author: Paul van Brouwershaven (@vanbroup)
  * License: GPL-2.0-or-later
@@ -67,8 +76,9 @@ static void browser_source_hotkey_forwarder(void *data, obs_hotkey_id id, obs_ho
     obs_source_send_key_click(src, &ev, true);  // Key up
 }
 
-/* Registration helper: creates and registers all filter variants for a browser source */
-void register_browser_source_hotkey_forwarders(obs_source_t *src)
+/* Registration helper: creates and registers all filter variants for a browser source.
+ * Returns an array of context pointers that must be freed on source destruction. */
+struct hotkey_cb_context **register_browser_source_hotkey_forwarders(obs_source_t *src)
 {
     static const struct {
         const char *id;
@@ -80,26 +90,30 @@ void register_browser_source_hotkey_forwarders(obs_source_t *src)
         { "browser.send_key_strip_all", "Send Key to Browser Source (Strip All Modifiers)", FILTER_ALL }
     };
 
-    for (size_t i = 0; i < sizeof(registrations)/sizeof(registrations[0]); ++i) {
+    const size_t count = sizeof(registrations)/sizeof(registrations[0]);
+    struct hotkey_cb_context **contexts = bzalloc(sizeof(*contexts) * (count + 1));
+
+    for (size_t i = 0; i < count; ++i) {
         struct hotkey_cb_context *ctx = bzalloc(sizeof(*ctx));
         ctx->src = src;
         ctx->mode = registrations[i].mode;
         obs_hotkey_register_source(src, registrations[i].id, registrations[i].desc,
                                    browser_source_hotkey_forwarder, ctx);
-        // NOTE: In a full plugin, you should track ctx pointers for cleanup on source destroy!
+        contexts[i] = ctx;
     }
+    contexts[count] = NULL; // NULL-terminated array
+
+    return contexts;
 }
 
-/*
- * Usage (example integration):
- *
- * 1. Call register_browser_source_hotkey_forwarders(your_browser_source) when initializing a browser source.
- * 2. The user will see three hotkey options in OBS Hotkey settings per source:
- *      - Send Key to Browser Source (Exact)
- *      - Send Key to Browser Source (Strip First Modifier)
- *      - Send Key to Browser Source (Strip All Modifiers)
- * 3. The user can assign any key or key+modifier combo to these actions. When triggered, the keystroke is forwarded based on the selected filtering mode.
- * 4. Handle memory cleanup for the context structs in your plugin's source destroy handler if needed.
- *
- * This feature allows users to route the same keystroke to different browsers using different modifiers, while the browser receives only the intended key if desired.
- */
+/* Cleanup helper: frees all context pointers allocated during registration */
+void cleanup_browser_source_hotkey_forwarders(struct hotkey_cb_context **contexts)
+{
+    if (!contexts)
+        return;
+
+    for (size_t i = 0; contexts[i] != NULL; ++i) {
+        bfree(contexts[i]);
+    }
+    bfree(contexts);
+}

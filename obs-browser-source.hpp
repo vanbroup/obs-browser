@@ -39,11 +39,15 @@ inline constexpr ControlLevel DEFAULT_CONTROL_LEVEL = ControlLevel::ReadObs;
 
 extern bool hwaccel;
 
+/* Forward declaration for hotkey forwarder context */
+struct hotkey_cb_context;
+
 struct BrowserSource {
 	BrowserSource **p_prev_next = nullptr;
 	BrowserSource *next = nullptr;
 
 	obs_source_t *source = nullptr;
+	struct hotkey_cb_context **hotkey_contexts = nullptr;
 
 	bool tex_sharing_avail = false;
 	bool create_browser = false;
@@ -133,3 +137,13 @@ struct BrowserSource {
 	void SetBrowser(CefRefPtr<CefBrowser> b);
 	CefRefPtr<CefBrowser> GetBrowser();
 };
+
+/* Hotkey forwarder functions */
+#ifdef __cplusplus
+extern "C" {
+#endif
+struct hotkey_cb_context **register_browser_source_hotkey_forwarders(obs_source_t *src);
+void cleanup_browser_source_hotkey_forwarders(struct hotkey_cb_context **contexts);
+#ifdef __cplusplus
+}
+#endif

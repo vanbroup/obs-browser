@@ -83,6 +83,9 @@ BrowserSource::BrowserSource(obs_data_t *, obs_source_t *source_) : source(sourc
 	obs_hotkey_register_source(source, "ObsBrowser.Refresh", obs_module_text("RefreshNoCache"), refreshFunction,
 				   (void *)this);
 
+	/* Register hotkey forwarders */
+	hotkey_contexts = register_browser_source_hotkey_forwarders(source);
+
 	auto jsEventFunction = [](void *p, calldata_t *calldata) {
 		const auto eventName = calldata_string(calldata, "eventName");
 		if (!eventName)
@@ -135,6 +138,12 @@ void BrowserSource::Destroy()
 {
 	destroying = true;
 	DestroyTextures();
+
+	/* Cleanup hotkey forwarder contexts */
+	if (hotkey_contexts) {
+		cleanup_browser_source_hotkey_forwarders(hotkey_contexts);
+		hotkey_contexts = nullptr;
+	}
 
 	lock_guard<mutex> lock(browser_list_mutex);
 	if (next)

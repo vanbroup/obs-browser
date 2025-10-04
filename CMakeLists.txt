@@ -35,6 +35,7 @@ target_sources(
           deps/signal-restore.hpp
           deps/wide-string.cpp
           deps/wide-string.hpp
+          obs-browser-hotkey-forwarder.c
           obs-browser-plugin.cpp
           obs-browser-source.cpp
           obs-browser-source.hpp)
